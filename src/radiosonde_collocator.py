@@ -16,9 +16,6 @@ import numpy as np
 
 
 class radiosonde_collocator:
-    
+
     def __init__(self, parameters):
         igra_collocator(parameter)
-    
-        
-        
