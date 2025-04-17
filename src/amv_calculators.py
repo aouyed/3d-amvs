@@ -32,18 +32,16 @@ LABEL = "specific_humidity_mean"
 
 def fill(data, invalid=None):
     """
-    (algorithm created by Juh_:https://stackoverflow.com/users/1206998/juh)
     Replace the value of invalid 'data' cells (indicated by 'invalid')
-    by the value of the nearest valid data cell
+    by the value of the nearest valid data cell.
 
-    Input:
-        data:    numpy array of any dimension
-        invalid: a binary array of same shape as 'data'.
-                 data value are replaced where invalid is True
-                 If None (default), use: invalid  = np.isnan(data)
+    Args:
+        data (numpy.ndarray): Array of any dimension containing data.
+        invalid (numpy.ndarray, optional): Binary array of the same shape as 'data'.
+            Data values are replaced where invalid is True. Defaults to None.
 
-    Output:
-        Return a filled array.
+    Returns:
+        numpy.ndarray: A filled array with invalid cells replaced.
     """
     if invalid is None:
         invalid = np.isnan(data)
@@ -55,6 +53,17 @@ def fill(data, invalid=None):
 
 
 def daterange(start_date, end_date, dhour):
+    """
+    Generate a list of dates between start_date and end_date with a given interval.
+
+    Args:
+        start_date (datetime): The starting date.
+        end_date (datetime): The ending date.
+        dhour (int): Interval in hours.
+
+    Returns:
+        list: List of datetime objects.
+    """
     date_list = []
     delta = timedelta(hours=dhour)
     while start_date <= end_date:
@@ -64,6 +73,18 @@ def daterange(start_date, end_date, dhour):
 
 
 def calc(frame0, frame, Lambda, alg):
+    """
+    Calculate optical flow between two frames using the specified algorithm.
+
+    Args:
+        frame0 (numpy.ndarray): The first frame.
+        frame (numpy.ndarray): The second frame.
+        Lambda (float): Regularization parameter for the optical flow algorithm.
+        alg (str): The algorithm to use ('deepflow' or 'tvl1').
+
+    Returns:
+        tuple: Optical flow components (flowx, flowy).
+    """
     if frame0.shape != frame.shape:
         frame = np.resize(frame, frame0.shape)
 
@@ -97,34 +118,45 @@ def calc(frame0, frame, Lambda, alg):
 
 
 def frame_retreiver(ds):
-    ds_inpaint = ds
+    """
+    Retrieve and fill a frame from the dataset.
+
+    Args:
+        ds (xarray.Dataset): The dataset containing the frame.
+
+    Returns:
+        numpy.ndarray: The filled frame.
+    """
     frame = np.squeeze(ds[LABEL].values)
-    # plt.imshow(frame)
-    # plt.show()
-    # plt.close()
     frame = fill(frame)
-    # plt.imshow(frame)
-    # plt.show()
-    # plt.close()
-    # frame=np.nan_to_num(frame)
-    # rame=inpainter.drop_nan(frame)
     return frame
 
 
 def frame_retreiver_ns(ds):
+    """
+    Retrieve and process a frame from the dataset using inpainter.
+
+    Args:
+        ds (xarray.Dataset): The dataset containing the frame.
+
+    Returns:
+        numpy.ndarray: The processed frame.
+    """
     frame = np.squeeze(ds[LABEL].values)
-    # plt.imshow(frame)
-    # plt.show()
-    # plt.close()
-    # frame=np.nan_to_num(frame)
     frame = inpainter.drop_nan(frame)
-    # plt.imshow(frame)
-    # plt.show()
-    # plt.close()
     return frame
 
 
 def prepare_ds(ds):
+    """
+    Prepare the dataset by adding empty variables for calculations.
+
+    Args:
+        ds (xarray.Dataset): The dataset to prepare.
+
+    Returns:
+        xarray.Dataset: The prepared dataset.
+    """
     ds["humidity_overlap"] = xr.full_like(
         ds["specific_humidity_mean"], fill_value=np.nan
     )
@@ -140,8 +172,18 @@ def prepare_ds(ds):
 
 
 def swath_initializer(ds, dmins, swath_hours):
+    """
+    Initialize swath time intervals.
+
+    Args:
+        ds (xarray.Dataset): The dataset containing observation times.
+        dmins (int): Interval in minutes.
+        swath_hours (int): Total swath duration in hours.
+
+    Returns:
+        list: List of swath time intervals.
+    """
     number = (swath_hours * 60) / dmins
-    # mind=ds['obs_time'].min(skipna=True).values
     mind = np.nanmin(ds["obs_time"].values)
     times = np.arange(dmins, dmins * number, dmins)
     swathes = []
@@ -155,6 +197,23 @@ def swath_initializer(ds, dmins, swath_hours):
 
 
 def prepare_patch(ds_snpp, ds_j1, ds_model, start, end):
+    """
+    Prepare a patch of data for processing by filtering datasets and merging them.
+
+    Args:
+        ds_snpp (xarray.Dataset): SNPP dataset containing specific humidity and observation time.
+        ds_j1 (xarray.Dataset): J1 dataset containing specific humidity and observation time.
+        ds_model (xarray.Dataset): Model dataset containing latitude, longitude, and time.
+        start (datetime): Start time for filtering the datasets.
+        end (datetime): End time for filtering the datasets.
+
+    Returns:
+        tuple: A tuple containing:
+            - ds_merged (xarray.Dataset): Merged dataset with filtered data.
+            - ds_snpp (xarray.Dataset): Filtered SNPP dataset.
+            - ds_j1 (xarray.Dataset): Filtered J1 dataset.
+            - df_snpp (pandas.DataFrame): DataFrame representation of the filtered SNPP dataset.
+    """
     ds_j1 = ds_j1.where((ds_j1.obs_time >= start) & (ds_j1.obs_time <= end))
     model_t = start + np.timedelta64(25, "m")
     start = start + np.timedelta64(50, "m")
@@ -198,6 +257,18 @@ def prepare_patch(ds_snpp, ds_j1, ds_model, start, end):
 
 
 def flow_calculator(ds_snpp, ds_j1, ds_merged, param):
+    """
+    Calculate flow components and update datasets.
+
+    Args:
+        ds_snpp (xarray.Dataset): SNPP dataset.
+        ds_j1 (xarray.Dataset): J1 dataset.
+        ds_merged (xarray.Dataset): Merged dataset.
+        param (parameters): Parameters object.
+
+    Returns:
+        tuple: Updated SNPP and J1 datasets.
+    """
     frame0 = frame_retreiver_ns(ds_j1)
     frame = frame_retreiver_ns(ds_snpp)
     flowx, flowy = calc(frame0, frame, param.Lambda, param.alg)
@@ -214,7 +285,6 @@ def flow_calculator(ds_snpp, ds_j1, ds_merged, param):
         - ds_merged["obs_time"].loc[{"satellite": "j1"}]
     )
     dt_int = dt.values.astype("timedelta64[s]").astype(np.int32)
-    breakpoint()
     dt_inv = 1 / dt_int
     dt_inv[dt_inv == np.inf] = np.nan
     dx_conv = abs(np.cos(np.deg2rad(ds_merged.latitude)))
@@ -231,6 +301,16 @@ def flow_calculator(ds_snpp, ds_j1, ds_merged, param):
 
 
 def df_filler(df, df_sat):
+    """
+    Fill DataFrame with satellite data.
+
+    Args:
+        df (pandas.DataFrame): DataFrame to fill.
+        df_sat (pandas.DataFrame): Satellite data.
+
+    Returns:
+        pandas.DataFrame: Updated DataFrame.
+    """
     swathi = df_sat.index.values
     df["humidity_overlap"].loc[df.index.isin(swathi)] = df_sat["specific_humidity_mean"]
     df["flowx"].loc[df.index.isin(swathi)] = df_sat["flowx"]
@@ -242,6 +322,17 @@ def df_filler(df, df_sat):
 
 
 def df_filler_model(df, df_sat, df_m):
+    """
+    Fill DataFrame with model data.
+
+    Args:
+        df (pandas.DataFrame): DataFrame to fill.
+        df_sat (pandas.DataFrame): Satellite data.
+        df_m (pandas.DataFrame): Model data.
+
+    Returns:
+        pandas.DataFrame: Updated DataFrame.
+    """
     swathi = df_sat.index.values
     df["u_era5"].loc[df.index.isin(swathi)] = df_m["u"]
     df["v_era5"].loc[df.index.isin(swathi)] = df_m["v"]
@@ -250,6 +341,17 @@ def df_filler_model(df, df_sat, df_m):
 
 
 def amv_calculator(ds_merged, df, param):
+    """
+    Calculate atmospheric motion vectors (AMVs).
+
+    Args:
+        ds_merged (xarray.Dataset): Merged dataset.
+        df (pandas.DataFrame): DataFrame to update.
+        param (parameters): Parameters object.
+
+    Returns:
+        tuple: Updated DataFrame, SNPP dataset, J1 dataset, and merged dataset.
+    """
     ds_snpp = ds_merged.loc[{"satellite": "snpp"}].expand_dims("satellite")
     ds_j1 = ds_merged.loc[{"satellite": "j1"}].expand_dims("satellite")
     ds_snpp, ds_j1 = flow_calculator(ds_snpp, ds_j1, ds_merged, param)
