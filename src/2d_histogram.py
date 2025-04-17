@@ -9,15 +9,20 @@ VMAX = 0.2
 
 
 def big_histogram(ds, column_x, column_y, xedges, yedges, bins=100):
-    # xedges = [np.inf, -np.inf]
-    # yedges = [np.inf, -np.inf]
+    """
+    Generate a 2D histogram from the given dataset.
 
-    # xedges[0] = np.minimum(ds[column_x].min().item(), xedges[0])
-    # xedges[1] = np.maximum(ds[column_x].max().item(), xedges[1])
+    Args:
+        ds (xarray.Dataset): The dataset containing the data.
+        column_x (str): The name of the column for the x-axis.
+        column_y (str): The name of the column for the y-axis.
+        xedges (list): The edges for the x-axis bins.
+        yedges (list): The edges for the y-axis bins.
+        bins (int, optional): The number of bins for the histogram. Defaults to 100.
 
-    # yedges[0] = np.minimum(ds[column_y].min().item(), yedges[0])
-    # yedges[1] = np.maximum(ds[column_y].max().item(), yedges[1])
-
+    Returns:
+        tuple: A tuple containing the transposed heatmap and the extent of the histogram.
+    """
     xbins = np.linspace(xedges[0], xedges[1], bins + 1)
     ybins = np.linspace(yedges[0], yedges[1], bins + 1)
     heatmap = np.zeros((bins, bins), np.uint)
@@ -33,6 +38,20 @@ def big_histogram(ds, column_x, column_y, xedges, yedges, bins=100):
 
 
 def hist_unit(ds, label1, label2, ax, xedges, yedges):
+    """
+    Plot a single histogram unit on the given axis.
+
+    Args:
+        ds (xarray.Dataset): The dataset containing the data.
+        label1 (str): The label for the x-axis variable.
+        label2 (str): The label for the y-axis variable.
+        ax (matplotlib.axes.Axes): The axis to plot on.
+        xedges (list): The edges for the x-axis bins.
+        yedges (list): The edges for the y-axis bins.
+
+    Returns:
+        tuple: The axis and the image object.
+    """
     hist, edges = big_histogram(ds, label1, label2, xedges, yedges)
     im = ax.imshow(
         hist,
@@ -47,6 +66,22 @@ def hist_unit(ds, label1, label2, ax, xedges, yedges):
 
 
 def ax_compute(ax, var, edges, ds, df, letter, alg, is_amv):
+    """
+    Compute and plot a histogram on the given axis.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis to plot on.
+        var (str): The variable name.
+        edges (list): The edges for the bins.
+        ds (xarray.Dataset): The dataset containing the data.
+        df (pandas.DataFrame): The DataFrame containing correlation data.
+        letter (str): The subplot label.
+        alg (str): The algorithm name.
+        is_amv (bool): Whether the data is from AMV.
+
+    Returns:
+        matplotlib.image.AxesImage: The image object.
+    """
     ax, im = hist_unit(ds, var, var + "_era5", ax, edges, edges)
     if is_amv:
         ax.set_ylabel(r"$\mathrm{" + var + "}_{\mathrm{ERA 5}}$")
@@ -58,22 +93,25 @@ def ax_compute(ax, var, edges, ds, df, letter, alg, is_amv):
 
 
 def multiple_panel_hist(label, ds_rand, ds_tvl1, df_rand, df_tvl1):
+    """
+    Create a multiple-panel histogram plot.
+
+    Args:
+        label (str): The label for the plot.
+        ds_rand (xarray.Dataset): The random dataset.
+        ds_tvl1 (xarray.Dataset): The TVL1 dataset.
+        df_rand (pandas.DataFrame): The random dataset correlations.
+        df_tvl1 (pandas.DataFrame): The TVL1 dataset correlations.
+    """
     fig, axes = plt.subplots(nrows=2, ncols=1)
     axlist = axes.flat
     im = ax_compute(axlist[0], "speed", [0, 30], ds_tvl1, df_tvl1, "(a)", "AMV", True)
     ax_compute(axlist[1], "speed", [0, 30], ds_rand, df_rand, "(b)", "rand", False)
 
-    # ax_compute(axlist[2],'u',[-15,15],ds_tvl1,df_tvl1,'(c)','AMV', True)
-    # ax_compute(axlist[3],'u',[-15,15],ds_rand,df_rand,'(d)','rand', False)
-
-    # ax_compute(axlist[4],'v',[-15,15],ds_tvl1,df_tvl1,'(e)','AMV', True)
-    # ax_compute(axlist[5],'v',[-15,15],ds_rand,df_rand,'(f)','rand', False)
     cbar_ax = fig.add_axes([0.12, -0.07, 0.77, 0.05])
     fig.colorbar(im, cax=cbar_ax, orientation="horizontal", label="percent")
 
     plt.tight_layout()
-    # fig.subplots_adjust(hspace=0.15)
-
     plt.savefig(
         "../data/processed/plots/2d_hist_" + label + ".png",
         bbox_inches="tight",
@@ -84,6 +122,15 @@ def multiple_panel_hist(label, ds_rand, ds_tvl1, df_rand, df_tvl1):
 
 
 def compute_corr(ds):
+    """
+    Compute the correlation coefficients for the dataset.
+
+    Args:
+        ds (xarray.Dataset): The dataset containing the data.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the correlation coefficients.
+    """
     corrs = {"var": [], "r": []}
 
     r = xr.corr(ds["speed"], ds["speed_era5"]).item()
@@ -104,6 +151,15 @@ def compute_corr(ds):
 
 
 def compute(param):
+    """
+    Compute the dataset and correlation DataFrame for the given parameters.
+
+    Args:
+        param (parameters): The parameters object.
+
+    Returns:
+        tuple: A tuple containing the dataset and the correlation DataFrame.
+    """
     print("computing corr")
     ds = xr.open_dataset("../data/processed/" + param.tag + ".nc")
 
@@ -116,7 +172,12 @@ def compute(param):
 
 
 def main(param):
+    """
+    Main function to compute and plot histograms for the given parameters.
 
+    Args:
+        param (parameters): The parameters object.
+    """
     param.set_alg("rand")
     ds_rand, df_rand = compute(param)
 
